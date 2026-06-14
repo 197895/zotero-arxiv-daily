@@ -18,7 +18,10 @@ jobs:
         env:
           CUSTOM_CONFIG: ${{ secrets.CUSTOM_CONFIG }}
         run: |
+          if [ -z "$CUSTOM_CONFIG" ]; then
+            echo "CUSTOM_CONFIG secret is empty or not set."
+            exit 1
+          fi
           printf "%b\n" "$CUSTOM_CONFIG" > config/custom.yaml
-          echo "Use custom config: "
-          cat config/custom.yaml
+          echo "CUSTOM_CONFIG loaded into config/custom.yaml"
           uv run src/zotero_arxiv_daily/main.py
