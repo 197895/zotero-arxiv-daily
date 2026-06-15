@@ -8,6 +8,7 @@ import feedparser
 from tqdm import tqdm
 import multiprocessing
 import os
+from collections import Counter
 from queue import Empty
 from time import sleep
 from typing import Any, Callable, TypeVar
@@ -106,6 +107,16 @@ def _extract_text_from_tar_worker(source_url: str, paper_id: str, paper_title: s
         return file_contents["all"]
 
 
+def _get_bool_config(config: Any, *keys: str, default: bool = False) -> bool:
+    for key in keys:
+        value = config.get(key, None)
+        if value is not None:
+            if isinstance(value, str):
+                return value.strip().lower() in {"1", "true", "yes", "on"}
+            return bool(value)
+    return default
+
+
 @register_retriever("arxiv")
 class ArxivRetriever(BaseRetriever):
     def __init__(self, config):
@@ -115,19 +126,46 @@ class ArxivRetriever(BaseRetriever):
 
     def _retrieve_raw_papers(self) -> list[ArxivResult]:
         client = arxiv.Client(num_retries=10, delay_seconds=10)
-        query = '+'.join(self.config.source.arxiv.category)
-        include_cross_list = self.config.source.arxiv.get("include_cross_list", False)
+        categories = list(self.config.source.arxiv.category)
+        query = '+'.join(categories)
+        include_cross_list = _get_bool_config(
+            self.config.source.arxiv,
+            "include_cross_list",
+            "include_cross_range",
+            "cross_range",
+            "cross_list",
+            default=False,
+        )
         # Get the latest paper from arxiv rss feed
-        feed = feedparser.parse(f"https://rss.arxiv.org/atom/{query}")
-        if 'Feed error for query' in feed.feed.title:
+        rss_url = f"https://rss.arxiv.org/atom/{query}"
+        logger.info(f"Fetching arXiv RSS: {rss_url}")
+        feed = feedparser.parse(rss_url)
+        feed_title = feed.feed.get("title", "")
+        if 'Feed error for query' in feed_title:
             raise Exception(f"Invalid ARXIV_QUERY: {query}.")
         raw_papers = []
         allowed_announce_types = {"new", "cross"} if include_cross_list else {"new"}
+        announce_type_counts = Counter(
+            i.get("arxiv_announce_type", "new") for i in feed.entries
+        )
+        logger.info(
+            "arXiv RSS returned "
+            f"{len(feed.entries)} entries; status={getattr(feed, 'status', None)}; "
+            f"announce_types={dict(announce_type_counts)}; "
+            f"include_cross_list={include_cross_list}"
+        )
         all_paper_ids = [
             i.id.removeprefix("oai:arXiv.org:")
             for i in feed.entries
             if i.get("arxiv_announce_type", "new") in allowed_announce_types
         ]
+        logger.info(f"Selected {len(all_paper_ids)} arXiv paper IDs after announce_type filtering")
+        if len(feed.entries) > 0 and len(all_paper_ids) == 0:
+            logger.warning(
+                "arXiv RSS entries were found, but none matched the allowed announce types "
+                f"{sorted(allowed_announce_types)}. Set source.arxiv.include_cross_list: true "
+                "if the feed only contains cross-list papers."
+            )
         if self.config.executor.debug:
             all_paper_ids = all_paper_ids[:10]
 
