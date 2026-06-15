@@ -112,7 +112,7 @@ def render_email(papers:list[Paper]) -> str:
     for p in papers:
         #rate = get_stars(p.score)
         rate = round(p.score, 1) if p.score is not None else 'Unknown'
-        author_list = [a for a in p.authors]
+        author_list = p.authors_cn if p.authors_cn else p.authors
         num_authors = len(author_list)
         if num_authors <= 5:
             authors = ', '.join(author_list)

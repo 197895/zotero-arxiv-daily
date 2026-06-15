@@ -115,6 +115,33 @@ class Executor:
             for p in tqdm(reranked_papers):
                 p.generate_tldr(self.openai_client, self.config.llm)
                 p.generate_affiliations(self.openai_client, self.config.llm)
+            logger.info("Translating author names to Chinese...")
+            try:
+                all_authors = []
+                for p in reranked_papers:
+                    for a in p.authors:
+                        if a not in all_authors:
+                            all_authors.append(a)
+                if all_authors:
+                    author_str = "\n".join(all_authors)
+                    resp = self.openai_client.chat.completions.create(
+                        messages=[
+                            {"role": "system", "content": "你是一个翻译助手。请将以下英文作者名翻译为中文。对于常见学者，使用其已知的中文名（如 Geoffrey Hinton → 杰弗里·辛顿）；对于不确定的，使用音译。每行一个翻译，格式：英文名 → 中文名。只输出翻译结果，不要额外解释。"},
+                            {"role": "user", "content": author_str},
+                        ],
+                        **self.config.llm.get('generation_kwargs', {})
+                    )
+                    translation_map = {}
+                    for line in resp.choices[0].message.content.strip().split("\n"):
+                        if "→" in line:
+                            en, cn = line.split("→", 1)
+                            translation_map[en.strip()] = cn.strip()
+                    for p in reranked_papers:
+                        p.authors_cn = [translation_map.get(a, a) for a in p.authors]
+            except Exception as e:
+                logger.warning(f"Failed to translate author names: {e}")
+                for p in reranked_papers:
+                    p.authors_cn = p.authors
         elif not self.config.executor.send_empty:
             logger.info("No new papers found. No email will be sent.")
             return
