@@ -22,32 +22,38 @@ class Paper:
     score: Optional[float] = None
 
     def _generate_tldr_with_llm(self, openai_client:OpenAI,llm_params:dict) -> str:
-        lang = llm_params.get('language', 'English')
-        prompt = f"Given the following information of a paper, generate a one-sentence TLDR summary in {lang}:\n\n"
+        lang = llm_params.get('language', '中文')
+        prompt = (
+            f"请用{lang}用一句通俗的话总结下面这篇论文，让非专业读者也能快速明白它做了什么、有什么用。"
+            "避免使用过多学术黑话，直接说清核心想法即可。\n\n"
+        )
         if self.title:
-            prompt += f"Title:\n {self.title}\n\n"
+            prompt += f"标题：\n{self.title}\n\n"
 
         if self.abstract:
-            prompt += f"Abstract: {self.abstract}\n\n"
+            prompt += f"摘要：\n{self.abstract}\n\n"
 
         if self.full_text:
-            prompt += f"Preview of main content:\n {self.full_text}\n\n"
+            prompt += f"正文片段：\n{self.full_text}\n\n"
 
         if not self.full_text and not self.abstract:
             logger.warning(f"Neither full text nor abstract is provided for {self.url}")
-            return "Failed to generate TLDR. Neither full text nor abstract is provided"
-        
+            return "无法生成 TLDR：未提供摘要或正文。"
+
         # use gpt-4o tokenizer for estimation
         enc = tiktoken.encoding_for_model("gpt-4o")
         prompt_tokens = enc.encode(prompt)
         prompt_tokens = prompt_tokens[:4000]  # truncate to 4000 tokens
         prompt = enc.decode(prompt_tokens)
-        
+
         response = openai_client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
-                    "content": f"You are an assistant who perfectly summarizes scientific paper, and gives the core idea of the paper to the user. Your answer should be in {lang}.",
+                    "content": (
+                        f"你是一位擅长把学术论文讲明白的助手。请用{lang}回答，"
+                        "用日常、易懂的语言提炼论文的核心贡献和实际意义，一句话即可。"
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],

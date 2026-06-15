@@ -8,7 +8,7 @@ from tests.canned_responses import make_sample_paper, make_stub_openai_client
 @pytest.fixture()
 def llm_params():
     return {
-        "language": "English",
+        "language": "中文",
         "generation_kwargs": {"model": "gpt-4o-mini", "max_tokens": 16384},
     }
 
@@ -30,7 +30,7 @@ def test_tldr_without_abstract_or_fulltext(llm_params):
     client = make_stub_openai_client()
     paper = make_sample_paper(abstract="", full_text=None)
     result = paper.generate_tldr(client, llm_params)
-    assert "Failed to generate TLDR" in result
+    assert "无法生成 TLDR" in result
 
 
 def test_tldr_falls_back_to_abstract_on_error(llm_params):

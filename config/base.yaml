@@ -28,7 +28,7 @@ llm:
   # Arguments for the LLM API. See [here](https://platform.openai.com/docs/api-reference/chat/create) for more details.
     max_tokens: 16384
     model: ???
-  language: English # Preferred language for the TL;DR. Example: English
+  language: 中文 # 生成 TLDR 的首选语言。例如：English / 中文 / 日本語
 
 reranker:
   local:
