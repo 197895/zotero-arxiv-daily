@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   schedule:
     # Run after arXiv's weekday announcement window in both DST and standard time.
-    - cron: '30 2 * * 1-5'
+    - cron: '0 2 * * 1-5'
 
 jobs:
   calculate-and-send:
